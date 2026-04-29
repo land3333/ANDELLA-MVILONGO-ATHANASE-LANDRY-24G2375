@@ -4,7 +4,10 @@ import os
 
 app = Flask(__name__)
 app.secret_key = 'pulsepilot_secret_2024'
-DB_PATH = os.path.join(os.path.dirname(__file__), 'database.db')
+
+# ─── Chemin base de données ────────────────────────────────────────────────────
+# /tmp est le seul dossier accessible en écriture sur Render
+DB_PATH = '/tmp/database.db'
 
 
 # ─── Database ──────────────────────────────────────────────────────────────────
@@ -37,27 +40,18 @@ def init_db():
 # ─── Helper functions ──────────────────────────────────────────────────────────
 
 def calculate_bmi(weight: float, height: float) -> float:
-    """IMC = poids / taille²"""
     if height <= 0:
         return 0.0
     return round(weight / (height ** 2), 2)
 
 
 def simulate_heart_rate(age: int, activity: float, stress: int, gender: str) -> float:
-    """
-    Simule un rythme cardiaque au repos (bpm).
-    Formule : HR = 70 - 0.12*activity + 1.5*stress - 0.15*age + gender_offset
-    """
     gender_offset = 3 if gender == 'F' else 0
     hr = 70 - 0.12 * activity + 1.5 * stress - 0.15 * age + gender_offset
     return round(max(45, min(120, hr)), 1)
 
 
 def linear_regression(x_vals: list, y_vals: list):
-    """
-    Régression linéaire simple : y = a*x + b
-    Retourne (a, b) calculés sans librairie externe.
-    """
     n = len(x_vals)
     if n < 2:
         return 0.0, 0.0
@@ -82,39 +76,39 @@ def validate_form(data: dict) -> list:
     try:
         age = int(data.get('age', 0))
         if not (1 <= age <= 120):
-            errors.append('Âge invalide (1–120).')
+            errors.append('Age invalide (1-120).')
     except (ValueError, TypeError):
-        errors.append('Âge doit être un entier.')
+        errors.append('Age doit etre un entier.')
     try:
         activity = float(data.get('activity', -1))
         if not (0 <= activity <= 1440):
-            errors.append('Activité invalide (0–1440 min).')
+            errors.append('Activite invalide (0-1440 min).')
     except (ValueError, TypeError):
-        errors.append('Activité doit être un nombre.')
+        errors.append('Activite doit etre un nombre.')
     try:
         sleep = float(data.get('sleep', -1))
         if not (0 <= sleep <= 24):
-            errors.append('Sommeil invalide (0–24 h).')
+            errors.append('Sommeil invalide (0-24 h).')
     except (ValueError, TypeError):
-        errors.append('Sommeil doit être un nombre.')
+        errors.append('Sommeil doit etre un nombre.')
     try:
         stress = int(data.get('stress', 0))
         if not (1 <= stress <= 10):
-            errors.append('Stress invalide (1–10).')
+            errors.append('Stress invalide (1-10).')
     except (ValueError, TypeError):
-        errors.append('Stress doit être un entier.')
+        errors.append('Stress doit etre un entier.')
     try:
         weight = float(data.get('weight', 0))
         if not (20 <= weight <= 300):
-            errors.append('Poids invalide (20–300 kg).')
+            errors.append('Poids invalide (20-300 kg).')
     except (ValueError, TypeError):
-        errors.append('Poids doit être un nombre.')
+        errors.append('Poids doit etre un nombre.')
     try:
         height = float(data.get('height', 0))
         if not (0.5 <= height <= 2.5):
-            errors.append('Taille invalide (0.5–2.5 m).')
+            errors.append('Taille invalide (0.5-2.5 m).')
     except (ValueError, TypeError):
-        errors.append('Taille doit être un nombre.')
+        errors.append('Taille doit etre un nombre.')
     if data.get('gender') not in ('M', 'F', 'Other'):
         errors.append('Genre invalide.')
     return errors
@@ -127,7 +121,7 @@ def bmi_category(bmi: float) -> str:
         return 'Normal'
     if bmi < 30:
         return 'Surpoids'
-    return 'Obésité'
+    return 'Obesite'
 
 
 # ─── Routes ────────────────────────────────────────────────────────────────────
@@ -160,7 +154,7 @@ def index():
         conn.commit()
         conn.close()
 
-        flash('Données enregistrées avec succès !', 'success')
+        flash('Donnees enregistrees avec succes !', 'success')
         return redirect(url_for('dashboard'))
 
     return render_template('index.html', form_data={})
@@ -174,8 +168,8 @@ def dashboard():
 
     records = [dict(r) for r in rows]
     for r in records:
-        r['heart_rate']    = simulate_heart_rate(r['age'], r['activity'], r['stress'], r['gender'])
-        r['bmi_category']  = bmi_category(r['bmi'])
+        r['heart_rate']   = simulate_heart_rate(r['age'], r['activity'], r['stress'], r['gender'])
+        r['bmi_category'] = bmi_category(r['bmi'])
 
     if records:
         hrs        = [r['heart_rate'] for r in records]
@@ -193,13 +187,19 @@ def dashboard():
             'max_hr':       max(hrs),
         }
 
-        a, b         = linear_regression(activities, hrs)
-        pred_hr      = predict_heart_rate(stats['avg_activity'], a, b)
-        regression   = {'a': a, 'b': b, 'prediction': pred_hr,
-                        'at_activity': stats['avg_activity']}
+        a, b       = linear_regression(activities, hrs)
+        pred_hr    = predict_heart_rate(stats['avg_activity'], a, b)
+        regression = {
+            'a': a, 'b': b,
+            'prediction': pred_hr,
+            'at_activity': stats['avg_activity']
+        }
     else:
-        stats      = {'count': 0, 'avg_hr': 0, 'avg_bmi': 0,
-                      'avg_sleep': 0, 'avg_activity': 0, 'min_hr': 0, 'max_hr': 0}
+        stats = {
+            'count': 0, 'avg_hr': 0, 'avg_bmi': 0,
+            'avg_sleep': 0, 'avg_activity': 0,
+            'min_hr': 0, 'max_hr': 0
+        }
         regression = {'a': 0, 'b': 0, 'prediction': 0, 'at_activity': 0}
 
     return render_template('dashboard.html', records=records,
@@ -221,7 +221,6 @@ def chart_data():
         scatter.append({'x': r['activity'], 'y': hr, 'bmi': r['bmi']})
         hr_values.append(hr)
 
-    # Histogramme par bins de 5 bpm
     bins = {}
     for hr in hr_values:
         b = int(hr // 5) * 5
@@ -229,7 +228,6 @@ def chart_data():
     hist_labels = sorted(bins.keys())
     hist_data   = [bins[k] for k in hist_labels]
 
-    # Ligne de régression
     if len(scatter) >= 2:
         xs = [p['x'] for p in scatter]
         ys = [p['y'] for p in scatter]
@@ -244,7 +242,7 @@ def chart_data():
 
     return jsonify({
         'scatter':         scatter,
-        'hist_labels':     [f'{l}–{l+4} bpm' for l in hist_labels],
+        'hist_labels':     [f'{l}-{l+4} bpm' for l in hist_labels],
         'hist_data':       hist_data,
         'regression_line': reg_line,
     })
@@ -259,8 +257,8 @@ def delete_record(record_id):
     return jsonify({'status': 'ok'})
 
 
-# ─── Entry point ───────────────────────────────────────────────────────────────
+# ─── Initialisation automatique (gunicorn + local) ────────────────────────────
+init_db()
 
 if __name__ == '__main__':
-    init_db()
     app.run(debug=True, port=9000)
